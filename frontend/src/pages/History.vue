@@ -7,7 +7,7 @@ async function open(id){
   err.value = ''; detail.value = null
   try { detail.value = await getJSON(`/api/runs/${id}`) } catch(e){ err.value = e.message }
 }
-function listOrder(r){ return r.result?.list_order_meters_pin ?? r.result?.order_meters ?? r.result?.meters }
+function listOrder(r){ return r.result?.order_meters ?? r.result?.meters }
 function detailOrder(d){ return d?.result?.order_meters ?? d?.result?.meters }
 </script>
 <template><div class="page"><h1>记录</h1>
@@ -23,5 +23,5 @@ function detailOrder(d){ return d?.result?.order_meters ?? d?.result?.meters }
   <template v-if="r.result?.min_order_m != null">｜起订 {{ r.result.min_order_m }}m</template>
   ｜订货 <b>{{ listOrder(r) }}m</b>
 </li></ul>
-<p class="hint">列表订货用 pin；详情订货用主字段。改布料默认 M 后再打开旧单。</p>
+<p class="hint">订货米为保存时固化的快照；改布料默认 M 不影响旧编号。</p>
 </div></template>

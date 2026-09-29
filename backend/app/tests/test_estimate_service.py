@@ -50,3 +50,28 @@ def test_fabric_default_change_does_not_rewrite_old_runs(fresh_db):
     r = estimate_service.run_estimate(2, 1, False, "")
     assert r["min_order_m"] == 99.0
     assert r["order_meters"] == 99.0
+
+def test_list_and_detail_keep_snapshot_after_default_change(fresh_db):
+    # 基础 7.0m 被 M=10 托底到 10.0m，保存后改布料默认 M 再分别从列表/详情打开
+    saved = estimate_service.run_estimate(2, 1, True, "")
+    rid = saved["run_id"]
+    fabrics.update_min_order(1, 99.0)
+
+    listed = history.list_runs()[0]["result"]
+    detail = history.get_run(rid)["result"]
+    # M 字段保留写入值，订货米不掉回基础、不按新默认 99 重托底
+    for v in (listed, detail):
+        assert v["min_order_m"] == 10.0
+        assert v["base_meters"] == 7.0
+        assert v["order_meters"] == 10.0
+    # 列表摘要与详情订货米一致
+    assert listed["order_meters"] == detail["order_meters"]
+
+def test_bench_replay_with_write_time_params_matches_run(fresh_db):
+    # 算料台用写入时同参（显式 M=10）再算，订货米须等于该编号回看值
+    estimate_service.run_estimate(2, 1, True, "", 10.0)
+    fabrics.update_min_order(1, 99.0)  # 现行默认只约束新单
+    replay = estimate_service.run_estimate(2, 1, False, "", 10.0)
+    back = history.list_runs()[0]["result"]
+    assert replay["order_meters"] == back["order_meters"] == 10.0
+    assert replay["base_meters"] == back["base_meters"] == 7.0
