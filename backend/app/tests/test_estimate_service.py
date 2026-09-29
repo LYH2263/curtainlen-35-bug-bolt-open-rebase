@@ -50,3 +50,34 @@ def test_fabric_default_change_does_not_rewrite_old_runs(fresh_db):
     r = estimate_service.run_estimate(2, 1, False, "")
     assert r["min_order_m"] == 99.0
     assert r["order_meters"] == 99.0
+
+def test_list_and_detail_keep_floor_after_default_changes(fresh_db):
+    # 基础 7.0、布料默认 M=10 保存一单 → 订货固化 10
+    saved = estimate_service.run_estimate(2, 1, True, "")
+    rid = saved["run_id"]
+    fabrics.update_min_order(1, 99.0)   # 事后改布料页默认 M
+    # 列表摘要打开：M 字段保留旧值，订货不掉回基础、不按 99 重托
+    lst = history.list_runs()[0]["result"]
+    assert lst["min_order_m"] == 10.0
+    assert lst["base_meters"] == 7.0
+    assert lst["order_meters"] == 10.0
+    assert lst["list_order_meters_pin"] == 10.0
+    # 详情打开：与列表完全一致
+    det = history.get_run(rid)["result"]
+    assert det["min_order_m"] == 10.0
+    assert det["base_meters"] == 7.0
+    assert det["order_meters"] == 10.0
+    assert det["order_meters"] == lst["order_meters"]
+    # 连默认 M 被清除也不影响旧单
+    fabrics.update_min_order(1, None)
+    assert history.get_run(rid)["result"]["order_meters"] == 10.0
+
+def test_bench_recompute_with_write_time_params_matches_review(fresh_db):
+    saved = estimate_service.run_estimate(2, 1, True, "")
+    rid = saved["run_id"]
+    fabrics.update_min_order(1, 99.0)   # 布料页现行默认已变
+    review = history.get_run(rid)["result"]["order_meters"]
+    # 算料台用写入时同参（window/fabric + 当时 M=10，非现行 99）再算 → 等于该编号回看订货米
+    again = estimate_service.run_estimate(2, 1, False, "", 10.0)
+    assert again["order_meters"] == review == 10.0
+    assert again["base_meters"] == 7.0
